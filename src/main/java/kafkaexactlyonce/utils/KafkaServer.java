@@ -1,4 +1,4 @@
-package kafkaexactlyonce;
+package kafkaexactlyonce.utils;
 
 import java.io.Closeable;
 import java.io.File;

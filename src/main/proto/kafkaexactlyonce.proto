@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "kafkaexactlyonce";
+
+package kafkaexactlyonce;
+
+message ProducerState {
+    string producerId = 1;
+    int64 offset = 2;
+}
+
+message Event {
+    string message = 1;
+}
