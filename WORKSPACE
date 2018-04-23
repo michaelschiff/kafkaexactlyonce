@@ -1,16 +1,16 @@
 maven_jar(
     name = "org_apache_curator_curator_test",
-    artifact = "org.apache.curator:curator-test:4.0.1",
+    artifact = "org.apache.curator:curator-test:2.8.0",
 )
 
 maven_jar(
     name = "org_apache_curator_curator_framework",
-    artifact = "org.apache.curator:curator-framework:4.0.1"
+    artifact = "org.apache.curator:curator-framework:2.8.0"
 )
 
 maven_jar(
     name = "org_apache_curator_curator_client",
-    artifact = "org.apache.curator:curator-client:4.0.1"
+    artifact = "org.apache.curator:curator-client:2.8.0"
 )
 
 maven_jar(
@@ -30,7 +30,7 @@ maven_jar(
 
 maven_jar(
     name = "com_google_guava_guava",
-    artifact = "com.google.guava:guava:22.0"
+    artifact = "com.google.guava:guava:19.0"
 )
 
 maven_jar(
@@ -53,6 +53,25 @@ maven_jar(
     artifact = "org.apache.zookeeper:zookeeper:3.4.5"
 )
 
+maven_jar(
+    name = "com_google_protobuf_protobuf_java",
+    artifact = "com.google.protobuf:protobuf-java:3.5.1"
+)
+
+maven_jar(
+    name = "org_javassist_javassist",
+    artifact = "org.javassist:javassist:3.18.1-GA"
+)
+
+maven_jar(
+    name = "org_scala_lang_scala_library",
+    artifact = "org.scala-lang:scala-library:2.11.12"
+)
+
+maven_jar(
+    name = "com_yammer_metrics_metrics_core",
+    artifact = "com.yammer.metrics:metrics-core:2.1.5"
+)
 
 # proto_library, cc_proto_library, and java_proto_library rules implicitly
 # depend on @com_google_protobuf for protoc and proto runtimes.

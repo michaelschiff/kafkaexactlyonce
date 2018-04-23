@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.Lists;
 
 import kafka.admin.TopicCommand;
-import kafka.common.TopicExistsException;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServerStartable;
 import kafka.utils.ZkUtils;

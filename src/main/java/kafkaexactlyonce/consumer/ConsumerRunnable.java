@@ -44,8 +44,11 @@ public class ConsumerRunnable implements Runnable {
             for (TopicPartition topicPartition : states.keySet()) {
                 consumer.seek(topicPartition, states.get(topicPartition).offset);
             }
-            while (true) {
+            boolean emptyPoll = false;
+            while (!emptyPoll) {
+                emptyPoll = true;
                 for (ConsumerRecord<ProducerState, Event> record : consumer.poll(1000)) {
+                    emptyPoll = false;
                     TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
                     State state = states.get(topicPartition);
                     Event value = record.value();
@@ -94,9 +97,9 @@ public class ConsumerRunnable implements Runnable {
         }
     }
 
-    private static class State {
-        long offset;
-        Map<String, Long> producerState = new HashMap<>();
+    public static class State {
+        private long offset;
+        private Map<String, Long> producerState = new HashMap<>();
         // If this consumer was also a producer we would store our output producerOffets with this state
         //Map<TopicPartition, Long> outputProducerState = new HashMap<>();
 
@@ -104,7 +107,7 @@ public class ConsumerRunnable implements Runnable {
          * map of aggregates. The product of what we are consuming.  Generally large mappings should not be stored in
          * a single zookeeper ZNode.  We will do this for the sake of simplicity in this example.
          */
-        Map<String, Integer> aggregates = new HashMap<>();
+        private Map<String, Integer> aggregates = new HashMap<>();
 
         @Override
         public boolean equals(Object o) {
@@ -128,6 +131,14 @@ public class ConsumerRunnable implements Runnable {
             result = 31 * result + (producerState != null ? producerState.hashCode() : 0);
             result = 31 * result + (aggregates != null ? aggregates.hashCode() : 0);
             return result;
+        }
+
+        @Override public String toString() {
+            return "State{" +
+                    "offset=" + offset +
+                    ", producerState=" + producerState +
+                    ", aggregates=" + aggregates +
+                    '}';
         }
     }
 

@@ -11,5 +11,6 @@ java_library(
         "@org_apache_curator_curator_client//jar",
         "@com_fasterxml_jackson_core_jackson_databind//jar",
         "@com_fasterxml_jackson_core_jackson_core//jar",
-    ]
+    ],
+    visibility = ["//visibility:public"]
 )

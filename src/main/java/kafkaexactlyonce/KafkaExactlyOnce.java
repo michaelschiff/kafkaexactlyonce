@@ -1,39 +1,125 @@
 package kafkaexactlyonce;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
+import org.apache.curator.framework.CuratorFramework;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import kafka.common.Config;
 import kafkaexactlyonce.consumer.ConsumerRunnable;
 import kafkaexactlyonce.producer.ProducerRunnable;
+import kafkaexactlyonce.utils.KafkaServer;
+import kafkaexactlyonce.utils.ProtoKafkaDeserializer;
+import kafkaexactlyonce.utils.ProtoKafkaSerializer;
+import kafkaexactlyonce.utils.ZookeeperServer;
 
 public class KafkaExactlyOnce {
 
-    private final kafkaexactlyonce.utils.KafkaServer kafkaServer = new kafkaexactlyonce.utils.KafkaServer();
+    private static String TOPIC = "example_topic";
+    private static String PRODUCER_ID = "example_producer_id_1";
+    private static int PARTITIONS = 4;
+    private static String STATE_PATH = "/consumer_state/";
 
-    private final ProducerRunnable producerRunnable = new ProducerRunnable();
-    private final ConsumerRunnable consumerRunnable = new ConsumerRunnable();
+    private static ZookeeperServer zookeeperServer;
+    private static KafkaServer kafkaServer;
+    private static ProducerRunnable producerRunnable;
+    private static ConsumerRunnable consumerRunnable;
 
-    private KafkaProducer<ProducerState, Event> createProducer() {
+    public static void main(String[] args) throws Throwable {
+        File zkTmp = Files.createTempDirectory("zookeeper").toFile();
+        File kafkaTmp = File.createTempFile("kafka", null);
+        kafkaTmp.mkdirs();
+        zkTmp.deleteOnExit();
+        kafkaTmp.deleteOnExit();
+        zookeeperServer = new ZookeeperServer(zkTmp);
+        zookeeperServer.start();
+        kafkaServer = new KafkaServer(zookeeperServer.getServer().getConnectString(), kafkaTmp);
+        kafkaServer.start();
+        kafkaServer.createTopic(TOPIC, PARTITIONS);
+        List<TopicPartition> topicPartitions = new ArrayList<>();
+        for (int i = 0; i < PARTITIONS; i++) {
+            topicPartitions.add(new TopicPartition(TOPIC, i));
+        }
 
+        CuratorFramework client = zookeeperServer.getClient();
+        producerRunnable = new ProducerRunnable(createProducer(), TOPIC, PRODUCER_ID, 10_000, 100);
+        consumerRunnable = new ConsumerRunnable(createConsumer(), STATE_PATH, topicPartitions, client);
+        Thread producerThread = new Thread(producerRunnable);
+        Thread consumerThread = new Thread(consumerRunnable);
+        producerThread.start();
+        consumerThread.start();
+        producerThread.join();
+        consumerThread.join();
+
+        ObjectMapper mapper = new ObjectMapper();
+        for (TopicPartition topicPartition : topicPartitions) {
+            ConsumerRunnable.State state = mapper
+                    .readValue(client.getData().forPath(STATE_PATH + topicPartition.toString()),
+                            ConsumerRunnable.State.class);
+            StringBuilder builder = new StringBuilder();
+            builder.append("TopicPartition: " + topicPartition.toString() + "\n");
+            builder.append("\t" + state.toString());
+            System.out.println(builder.toString());
+
+        }
+
+        client.close();
+        kafkaServer.close();
+        zookeeperServer.close();
     }
 
-    private KafkaConsumer<ProducerState, Event> createConsumer() {
+    private static KafkaProducer<ProducerState, Event> createProducer() {
+
         Properties properties = new Properties();
-        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBrokers);
+        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaServer.getConnectionString());
+        properties.put(ProducerConfig.ACKS_CONFIG, 1);
+        properties.put(ProducerConfig.RETRIES_CONFIG, 10);
+        properties.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 10_000);
+        properties.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 10_000);
+        properties.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+        properties.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "lz4");
+        properties.put(ProducerConfig.BATCH_SIZE_CONFIG, 100);
+        properties.put(ProducerConfig.LINGER_MS_CONFIG, 5);
+        properties.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 32 * 1024 * 1024);
+        properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ProtoKafkaSerializer.class);
+        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ProtoKafkaSerializer.class);
+        return new KafkaProducer(properties);
+    }
+
+    private static KafkaConsumer<ProducerState, Event> createConsumer() {
+        Properties properties = new Properties();
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaServer.getConnectionString());
         /* Disable kafka offset management */
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         /* Make consumer block until some data is available */
-        properties.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, kafkaConfig.getConsumerFetchMaxWaitMs());
-        properties.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, kafkaConfig.getConsumerFetchMinBytes());
+        properties.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 10_000);
+        properties.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 32 * 1024);
         /* Limit number of bytes fetched per partition */
-        properties.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG,
-                Integer.toString(kafkaConfig.getConsumerFetchBytes()));
-        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, kcls);
-        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, vcls);
+        properties.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 1024 * 1024);
+        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,ProducerStateDeserializer.class);
+        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer.class);
         return new KafkaConsumer<>(properties);
+    }
+
+    private static class ProducerStateDeserializer extends ProtoKafkaDeserializer<ProducerState> {
+        public ProducerStateDeserializer() {
+            super(ProducerState.parser());
+        }
+    }
+    private static class EventDeserializer extends ProtoKafkaDeserializer<Event> {
+        public EventDeserializer() {
+            super(Event.parser());
+        }
     }
 
 }

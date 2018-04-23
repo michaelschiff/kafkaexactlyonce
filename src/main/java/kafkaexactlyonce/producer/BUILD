@@ -6,5 +6,6 @@ java_library(
         "@org_apache_kafka_kafka_clients//jar",
         "@org_apache_kafka_kafka_2_11//jar",
         "@org_slf4j_slf4j_api//jar",
-    ]
+    ],
+    visibility = ["//visibility:public"]
 )

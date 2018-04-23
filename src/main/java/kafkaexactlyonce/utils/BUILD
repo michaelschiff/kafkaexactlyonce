@@ -2,6 +2,7 @@ java_library(
     name = "utils",
     srcs = glob(["*.java"]),
     deps = [
+        "//src/main/proto:kafkaexactlyonce_java_proto",
         "@org_slf4j_slf4j_api//jar",
         "@org_apache_curator_curator_framework//jar",
         "@org_apache_curator_curator_client//jar",
@@ -10,5 +11,7 @@ java_library(
         "@org_apache_kafka_kafka_clients//jar",
         "@net_sf_jopt_simple_jopt_simple//jar",
         "@com_google_guava_guava//jar",
-    ]
+        "@com_google_protobuf_protobuf_java//jar",
+    ],
+    visibility = ["//visibility:public"]
 )
