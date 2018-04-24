@@ -50,11 +50,15 @@ public class KafkaExactlyOnce {
         }
 
         CuratorFramework client = zookeeperServer.getClient();
-        producerRunnable = new ProducerRunnable(createProducer(), TOPIC, PRODUCER_ID, 100, 10);
-        consumerRunnable = new ConsumerRunnable(createConsumer(), STATE_PATH, topicPartitions, client, 100);
+        KafkaProducer<String, String> producer = createProducer();
+        KafkaConsumer<String, String> consumer = createConsumer();
+        producerRunnable = new ProducerRunnable(producer, TOPIC, PRODUCER_ID, 100, 10);
+        consumerRunnable = new ConsumerRunnable(consumer, STATE_PATH, topicPartitions, client, 100);
         Thread producerThread = new Thread(producerRunnable);
         Thread consumerThread = new Thread(consumerRunnable);
+        System.out.println("Starting Producer");
         producerThread.start();
+        System.out.println("Starting Consumer");
         consumerThread.start();
         producerThread.join();
         consumerThread.join();
@@ -72,8 +76,11 @@ public class KafkaExactlyOnce {
         }
 
         client.close();
+        producer.close();
+        consumer.close();
         kafkaServer.close();
         zookeeperServer.close();
+        System.exit(0);
     }
 
     private static KafkaProducer<String, String> createProducer() {

@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Lists;
+import com.yammer.metrics.Metrics;
 
 import kafka.admin.TopicCommand;
 import kafka.server.KafkaConfig;
@@ -61,6 +62,8 @@ public class KafkaServer implements Closeable {
     public void close() throws IOException {
         if (broker != null) {
             broker.shutdown();
+            broker.awaitShutdown();
+            Metrics.defaultRegistry().shutdown();
             broker = null;
         }
     }
