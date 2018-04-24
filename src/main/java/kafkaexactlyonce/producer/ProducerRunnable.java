@@ -75,7 +75,7 @@ public class ProducerRunnable implements Runnable {
                 /*
                  * Store the updated producer offset
                  */
-                outputProducerOffsets.put(outputTopicPartition, producerOffset + 1);
+                batchOutputOffsets.put(outputTopicPartition, producerOffset + 1);
             }
 
             /*

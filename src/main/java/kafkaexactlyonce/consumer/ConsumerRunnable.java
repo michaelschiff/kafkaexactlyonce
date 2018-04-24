@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kafkaexactlyonce.utils.ProducerState;
+
 public class ConsumerRunnable implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConsumerRunnable.class);
@@ -54,10 +56,16 @@ public class ConsumerRunnable implements Runnable {
                     totalRecords++;
                     TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
                     State state = states.get(topicPartition);
-                    String value = record.value();
-                    // Increment our aggregates based on this record value
-                    Integer current = state.aggregates.getOrDefault(value, 0);
-                    state.aggregates.put(value, current + 1);
+                    ProducerState producerState = new ProducerState(record.key());
+                    String producerId = producerState.getProducerId();
+                    long producerOffset = producerState.getOffset();
+                    if (!state.producerState.containsKey(producerId) || state.producerState.get(producerId) + 1 == producerOffset) {
+                        state.producerState.put(producerId, producerOffset);
+                        String value = record.value();
+                        // Increment our aggregates based on this record value
+                        Integer current = state.aggregates.getOrDefault(value, 0);
+                        state.aggregates.put(value, current + 1);
+                    }
                     // Update the offset for this partition to the next offset we should fetch from
                     state.offset = record.offset() + 1;
                 }
