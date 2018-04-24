@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -21,19 +22,21 @@ public class ConsumerRunnable implements Runnable {
     private final String statePath;
     private final List<TopicPartition> partitions;
     private final CuratorFramework zk;
+    private final int expectedRecords;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public ConsumerRunnable(KafkaConsumer consumer, String statePath, List<TopicPartition> partitions,
-            CuratorFramework zk) {
+            CuratorFramework zk, int totalRecords) {
         this.consumer = consumer;
         this.statePath = statePath;
         this.partitions = partitions;
         this.zk = zk;
+        this.expectedRecords = totalRecords;
     }
 
     @Override
     public void run() {
-
+        int totalRecords = 0;
         // Assign the partitions to our consumer so that polls fetch from these partitions
         consumer.assign(partitions);
         try {
@@ -41,8 +44,14 @@ public class ConsumerRunnable implements Runnable {
             for (TopicPartition topicPartition : states.keySet()) {
                 consumer.seek(topicPartition, states.get(topicPartition).offset);
             }
-            while (!Thread.currentThread().isInterrupted()) {
-                for (ConsumerRecord<String, String> record : consumer.poll(1000)) {
+            int emptyFetchCount = 0;
+            while (emptyFetchCount < 2 || totalRecords < expectedRecords) {
+                ConsumerRecords<String, String> poll = consumer.poll(1_000);
+                if (poll.isEmpty()) {
+                    emptyFetchCount++;
+                }
+                for (ConsumerRecord<String, String> record : poll) {
+                    totalRecords++;
                     TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
                     State state = states.get(topicPartition);
                     String value = record.value();

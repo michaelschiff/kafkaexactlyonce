@@ -51,14 +51,13 @@ public class KafkaExactlyOnce {
 
         CuratorFramework client = zookeeperServer.getClient();
         producerRunnable = new ProducerRunnable(createProducer(), TOPIC, PRODUCER_ID, 100, 10);
-        consumerRunnable = new ConsumerRunnable(createConsumer(), STATE_PATH, topicPartitions, client);
+        consumerRunnable = new ConsumerRunnable(createConsumer(), STATE_PATH, topicPartitions, client, 100);
         Thread producerThread = new Thread(producerRunnable);
         Thread consumerThread = new Thread(consumerRunnable);
         producerThread.start();
         consumerThread.start();
         producerThread.join();
-        consumerThread.join(60_000);
-        consumerThread.interrupt();
+        consumerThread.join();
 
         ObjectMapper mapper = new ObjectMapper();
         for (TopicPartition topicPartition : topicPartitions) {
