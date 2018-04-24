@@ -19,4 +19,11 @@ public class ProducerState {
         return producerId + ":" + offset;
     }
 
+    public String getProducerId() {
+        return producerId;
+    }
+
+    public long getOffset() {
+        return offset;
+    }
 }
