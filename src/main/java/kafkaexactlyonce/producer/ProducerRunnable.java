@@ -11,25 +11,22 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import kafka.common.Topic;
-import kafkaexactlyonce.Event;
-import kafkaexactlyonce.ProducerState;
+import kafkaexactlyonce.utils.ProducerState;
 
 public class ProducerRunnable implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProducerRunnable.class);
 
-    private final KafkaProducer<ProducerState, Event> producer;
+    private final KafkaProducer<String, String> producer;
     private final String topic;
     private final String producerId;
     private final int totalMessages;
     private final int batchSize;
 
-    public ProducerRunnable(KafkaProducer<ProducerState, Event> producer, String topic, String producerId, int totalMessages, int batchSize) {
+    public ProducerRunnable(KafkaProducer<String, String> producer, String topic, String producerId, int totalMessages, int batchSize) {
         this.producer = producer;
         this.topic = topic;
         this.producerId = producerId;
@@ -54,7 +51,7 @@ public class ProducerRunnable implements Runnable {
             List<Future<RecordMetadata>> batch = new ArrayList<>();
             int k;
             Map<TopicPartition, Long> batchOutputOffsets = new HashMap<>(outputProducerOffsets);
-            for (k = i; k < batchSize; k++) {
+            for (k = 0; k < batchSize; k++) {
                 /*
                  * partition according to the mod of our message offset. This will produce a consistent destination
                  * partition for this particular message, assuming no changes in the number of partitions.
@@ -63,14 +60,9 @@ public class ProducerRunnable implements Runnable {
                 TopicPartition outputTopicPartition = new TopicPartition(topic, partition);
                 long producerOffset = batchOutputOffsets.getOrDefault(outputTopicPartition, 0L);
 
-                ProducerState key = ProducerState.newBuilder()
-                        .setProducerId(producerId)
-                        .setOffset(producerOffset)
-                        .build();
-                Event value = Event.newBuilder()
-                        .setMessage(k % 2 == 0 ? "A" : "B")
-                        .build();
-                ProducerRecord<ProducerState, Event> record = new ProducerRecord<>(topic, partition, key, value);
+                String key = new ProducerState(producerId, producerOffset).toString();
+                String value = k % 2 == 0 ? "A" : "B";
+                ProducerRecord<String, String> record = new ProducerRecord<>(topic, partition, key, value);
 
                 batch.add(producer.send(record));
                 /*

@@ -13,14 +13,11 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kafkaexactlyonce.Event;
-import kafkaexactlyonce.ProducerState;
-
 public class ConsumerRunnable implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConsumerRunnable.class);
 
-    private final KafkaConsumer<ProducerState, Event> consumer;
+    private final KafkaConsumer<String, String> consumer;
     private final String statePath;
     private final List<TopicPartition> partitions;
     private final CuratorFramework zk;
@@ -44,17 +41,14 @@ public class ConsumerRunnable implements Runnable {
             for (TopicPartition topicPartition : states.keySet()) {
                 consumer.seek(topicPartition, states.get(topicPartition).offset);
             }
-            boolean emptyPoll = false;
-            while (!emptyPoll) {
-                emptyPoll = true;
-                for (ConsumerRecord<ProducerState, Event> record : consumer.poll(1000)) {
-                    emptyPoll = false;
+            while (!Thread.currentThread().isInterrupted()) {
+                for (ConsumerRecord<String, String> record : consumer.poll(1000)) {
                     TopicPartition topicPartition = new TopicPartition(record.topic(), record.partition());
                     State state = states.get(topicPartition);
-                    Event value = record.value();
+                    String value = record.value();
                     // Increment our aggregates based on this record value
-                    Integer current = state.aggregates.getOrDefault(value.getMessage(), 0);
-                    state.aggregates.put(value.getMessage(), current + 1);
+                    Integer current = state.aggregates.getOrDefault(value, 0);
+                    state.aggregates.put(value, current + 1);
                     // Update the offset for this partition to the next offset we should fetch from
                     state.offset = record.offset() + 1;
                 }
@@ -108,6 +102,30 @@ public class ConsumerRunnable implements Runnable {
          * a single zookeeper ZNode.  We will do this for the sake of simplicity in this example.
          */
         private Map<String, Integer> aggregates = new HashMap<>();
+
+        public long getOffset() {
+            return offset;
+        }
+
+        public Map<String, Long> getProducerState() {
+            return producerState;
+        }
+
+        public Map<String, Integer> getAggregates() {
+            return aggregates;
+        }
+
+        public void setOffset(long offset) {
+            this.offset = offset;
+        }
+
+        public void setProducerState(Map<String, Long> producerState) {
+            this.producerState = producerState;
+        }
+
+        public void setAggregates(Map<String, Integer> aggregates) {
+            this.aggregates = aggregates;
+        }
 
         @Override
         public boolean equals(Object o) {
